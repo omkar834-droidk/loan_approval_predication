@@ -8,6 +8,8 @@
 An **end-to-end Machine Learning web application** that predicts **loan approval eligibility** using financial and demographic features.
 The application provides **real-time predictions and probability scoring through an interactive Streamlit dashboard.**
 
+🔗 **Live App:** [credit-risk-app-app-qnfzw2ntuscz6f2nvssjmv.streamlit.app](https://loanapprovalpredication-5lt2rnbpjjhe4edyt7jwwu.streamlit.app/)
+
 ---
 
 # 🚀 Project Overview
