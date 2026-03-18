@@ -6,27 +6,20 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score
 
-st.set_page_config(page_title="Loan Approval AI", layout="wide")
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="Loan AI Dashboard", layout="wide")
 
-st.title("💳 Loan Approval Prediction System")
-
-# ------------------ LOAD DATA SAFELY ------------------
+# ---------------- LOAD DATA ----------------
 @st.cache_data
 def load_data():
-    try:
-        df = pd.read_csv("loan_approval_data.csv")
-        return df
-    except:
-        st.error("❌ CSV file not found. Please upload it.")
-        return None
+    df = pd.read_csv("loan_approval_data.csv")
+    return df
 
 df = load_data()
 
-if df is None:
-    st.stop()
-
-# ------------------ PREPROCESS ------------------
+# ---------------- PREPROCESS ----------------
 def preprocess(df):
     df = df.copy()
 
@@ -36,11 +29,7 @@ def preprocess(df):
     df[num_cols] = SimpleImputer(strategy="mean").fit_transform(df[num_cols])
     df[cat_cols] = SimpleImputer(strategy="most_frequent").fit_transform(df[cat_cols])
 
-    if "Applicant_ID" in df.columns:
-        df.drop("Applicant_ID", axis=1, inplace=True)
-
     le = LabelEncoder()
-    df["Education_Level"] = le.fit_transform(df["Education_Level"])
     df["Loan_Approved"] = le.fit_transform(df["Loan_Approved"])
 
     df = pd.get_dummies(df, drop_first=True)
@@ -52,52 +41,86 @@ def preprocess(df):
 
 X, y = preprocess(df)
 
-# ------------------ TRAIN ------------------
+# ---------------- TRAIN ----------------
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
 model = LogisticRegression()
 model.fit(X_scaled, y)
 
-# ------------------ UI ------------------
-st.sidebar.header("Input Details")
+# ---------------- SIDEBAR ----------------
+st.sidebar.title("💳 Loan AI")
+page = st.sidebar.radio("Navigation",
+                        ["Dashboard", "Dataset", "Model", "Predictor", "Insights"])
 
-income = st.sidebar.number_input("Applicant Income", 0, 100000, 15000)
-loan_amount = st.sidebar.number_input("Loan Amount", 1000, 100000, 20000)
-credit_score = st.sidebar.slider("Credit Score", 300, 850, 650)
-age = st.sidebar.slider("Age", 18, 60, 30)
+# ---------------- DASHBOARD ----------------
+if page == "Dashboard":
+    st.title("📊 Loan Dashboard")
 
-# Dummy input (simple version)
-input_data = pd.DataFrame({
-    "Applicant_Income": [income],
-    "Loan_Amount": [loan_amount],
-    "Credit_Score": [credit_score],
-    "Age": [age]
-})
+    col1, col2, col3 = st.columns(3)
 
-# Align columns
-for col in X.columns:
-    if col not in input_data.columns:
-        input_data[col] = 0
+    col1.metric("Total Applications", len(df))
+    col2.metric("Avg Income", int(df["Applicant_Income"].mean()))
+    col3.metric("Approval Rate", f"{(df['Loan_Approved'].mean()*100):.1f}%")
 
-input_data = input_data[X.columns]
+    fig = px.histogram(df, x="Applicant_Income", color="Loan_Approved")
+    st.plotly_chart(fig, use_container_width=True)
 
-# Scale
-input_scaled = scaler.transform(input_data)
+# ---------------- DATASET ----------------
+elif page == "Dataset":
+    st.title("📂 Dataset Explorer")
+    st.dataframe(df)
 
-# Predict
-if st.sidebar.button("Predict"):
-    pred = model.predict(input_scaled)[0]
-    prob = model.predict_proba(input_scaled)[0][1] * 100
+# ---------------- MODEL ----------------
+elif page == "Model":
+    st.title("🤖 Model Performance")
 
-    if pred == 1:
-        st.success(f"✅ Loan Approved ({prob:.2f}%)")
-    else:
-        st.error(f"❌ Loan Rejected ({prob:.2f}%)")
+    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2)
 
-# ------------------ DATA VIS ------------------
-st.subheader("📊 Dataset Overview")
-st.dataframe(df.head())
+    pred = model.predict(X_test)
+    acc = accuracy_score(y_test, pred)
 
-fig = px.histogram(df, x="Applicant_Income", color="Loan_Approved")
-st.plotly_chart(fig)
+    st.metric("Accuracy", f"{acc*100:.2f}%")
+
+# ---------------- PREDICTOR ----------------
+elif page == "Predictor":
+    st.title("🔮 Loan Predictor")
+
+    income = st.slider("Income", 0, 100000, 20000)
+    loan = st.slider("Loan Amount", 1000, 100000, 30000)
+    credit = st.slider("Credit Score", 300, 850, 650)
+    age = st.slider("Age", 18, 60, 30)
+
+    input_data = pd.DataFrame({
+        "Applicant_Income": [income],
+        "Loan_Amount": [loan],
+        "Credit_Score": [credit],
+        "Age": [age]
+    })
+
+    for col in X.columns:
+        if col not in input_data.columns:
+            input_data[col] = 0
+
+    input_data = input_data[X.columns]
+    input_scaled = scaler.transform(input_data)
+
+    if st.button("Predict"):
+        pred = model.predict(input_scaled)[0]
+        prob = model.predict_proba(input_scaled)[0][1]*100
+
+        if pred == 1:
+            st.success(f"Approved ({prob:.2f}%)")
+        else:
+            st.error(f"Rejected ({prob:.2f}%)")
+
+# ---------------- INSIGHTS ----------------
+elif page == "Insights":
+    st.title("📈 Insights")
+
+    fig1 = px.box(df, x="Loan_Approved", y="Applicant_Income")
+    st.plotly_chart(fig1, use_container_width=True)
+
+    fig2 = px.scatter(df, x="Applicant_Income", y="Loan_Amount",
+                      color="Loan_Approved")
+    st.plotly_chart(fig2, use_container_width=True)
